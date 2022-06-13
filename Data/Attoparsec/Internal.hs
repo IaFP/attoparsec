@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, CPP, ScopedTypeVariables #-}
+{-# LANGUAGE BangPatterns, CPP, ScopedTypeVariables, PartialTypeConstructors, ConstrainedClassMethods, FlexibleContexts #-}
 -- |
 -- Module      :  Data.Attoparsec.Internal
 -- Copyright   :  Bryan O'Sullivan 2007-2015
@@ -31,7 +31,7 @@ import Data.Attoparsec.Internal.Types
 import Data.ByteString (ByteString)
 import Data.Text (Text)
 import Prelude hiding (succ)
-
+import GHC.Types (WDT)
 -- | Compare two 'IResult' values for equality.
 --
 -- If both 'IResult's are 'Partial', the result will be 'Nothing', as
@@ -124,7 +124,7 @@ atEnd :: Chunk t => Parser t Bool
 atEnd = not <$> wantInput
 {-# INLINE atEnd #-}
 
-satisfySuspended :: forall t r . Chunk t
+satisfySuspended :: forall t r . (Chunk t, WDT (ChunkElem t))
                  => (ChunkElem t -> Bool)
                  -> State t -> Pos -> More
                  -> Failure t (State t) r
@@ -132,7 +132,9 @@ satisfySuspended :: forall t r . Chunk t
                  -> IResult t r
 satisfySuspended p t pos more lose succ =
     runParser (demandInput >> go) t pos more lose succ
-  where go = Parser $ \t' pos' more' lose' succ' ->
+  where
+    go :: Parser t (ChunkElem t)
+    go = Parser $ \t' pos' more' lose' succ' ->
           case bufferElemAt (undefined :: t) pos' t' of
             Just (e, l) | p e -> succ' t' (pos' + Pos l) more' e
                         | otherwise -> lose' t' pos' more' [] "satisfyElem"

@@ -2,7 +2,7 @@
 #if __GLASGOW_HASKELL__ >= 702
 {-# LANGUAGE Trustworthy #-} -- Data.ByteString.Unsafe
 #endif
-{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE BangPatterns, PartialTypeConstructors, ConstrainedClassMethods, FlexibleContexts, ExplicitNamespaces, TypeOperators, UndecidableInstances, QuantifiedConstraints #-}
 
 -- |
 -- Module      :  Data.Attoparsec.Zepto
@@ -48,7 +48,7 @@ import Data.Word (Word8)
 import Prelude hiding (take, takeWhile)
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Unsafe as B
-
+import GHC.Types (type (@), Total)
 newtype S = S {
       input :: ByteString
     }
@@ -61,7 +61,7 @@ data Result a = Fail String
 -- This monad is strict in its state, and the monadic bind operator
 -- ('>>=') evaluates each result to weak head normal form before
 -- passing it along.
-newtype ZeptoT m a = Parser {
+newtype m @ Result a => ZeptoT m a = Parser {
       runParser :: S -> m (Result a)
     }
 
@@ -75,13 +75,13 @@ instance Monad m => Functor (ZeptoT m) where
         Fail err -> return (Fail err)
     {-# INLINE fmap #-}
 
-instance MonadIO m => MonadIO (ZeptoT m) where
+instance (Total m, MonadIO m) => MonadIO (ZeptoT m) where
   liftIO act = Parser $ \s -> do
     result <- liftIO act
     return (OK result s)
   {-# INLINE liftIO #-}
 
-instance Monad m => Monad (ZeptoT m) where
+instance (Total m, Monad m) => Monad (ZeptoT m) where
     return = pure
     {-# INLINE return #-}
 
@@ -97,11 +97,11 @@ instance Monad m => Monad (ZeptoT m) where
     {-# INLINE fail #-}
 #endif
 
-instance Monad m => Fail.MonadFail (ZeptoT m) where
+instance (Total m, Monad m) => Fail.MonadFail (ZeptoT m) where
     fail msg = Parser $ \_ -> return (Fail msg)
     {-# INLINE fail #-}
 
-instance Monad m => MonadPlus (ZeptoT m) where
+instance (Total m, Monad m) => MonadPlus (ZeptoT m) where
     mzero = fail "mzero"
     {-# INLINE mzero #-}
 
@@ -112,7 +112,7 @@ instance Monad m => MonadPlus (ZeptoT m) where
         _           -> runParser b s
     {-# INLINE mplus #-}
 
-instance (Monad m) => Applicative (ZeptoT m) where
+instance (Total m, Monad m) => Applicative (ZeptoT m) where
     pure a = Parser $ \s -> return (OK a s)
     {-# INLINE pure #-}
     (<*>)  = ap
@@ -142,24 +142,24 @@ parseT p bs = do
     Fail err -> return (Left err)
 {-# INLINE parseT #-}
 
-instance Monad m => Semigroup (ZeptoT m a) where
+instance (Total m, Monad m) => Semigroup (ZeptoT m a) where
     (<>) = mplus
     {-# INLINE (<>) #-}
 
-instance Monad m => Mon.Monoid (ZeptoT m a) where
+instance (Total m, Monad m) => Mon.Monoid (ZeptoT m a) where
     mempty  = fail "mempty"
     {-# INLINE mempty #-}
     mappend = (<>)
     {-# INLINE mappend #-}
 
-instance Monad m => Alternative (ZeptoT m) where
+instance (Total m, Monad m) => Alternative (ZeptoT m) where
     empty = fail "empty"
     {-# INLINE empty #-}
     (<|>) = mplus
     {-# INLINE (<|>) #-}
 
 -- | Consume input while the predicate returns 'True'.
-takeWhile :: Monad m => (Word8 -> Bool) -> ZeptoT m ByteString
+takeWhile :: (Total m, Monad m) => (Word8 -> Bool) -> ZeptoT m ByteString
 takeWhile p = do
   (h,t) <- gets (B.span p . input)
   put (S t)
@@ -167,7 +167,7 @@ takeWhile p = do
 {-# INLINE takeWhile #-}
 
 -- | Consume @n@ bytes of input.
-take :: Monad m => Int -> ZeptoT m ByteString
+take :: (Total m, Monad m) => Int -> ZeptoT m ByteString
 take !n = do
   s <- gets input
   if B.length s >= n
@@ -176,7 +176,7 @@ take !n = do
 {-# INLINE take #-}
 
 -- | Match a string exactly.
-string :: Monad m => ByteString -> ZeptoT m ()
+string :: (Total m, Monad m) => ByteString -> ZeptoT m ()
 string s = do
   i <- gets input
   if s `B.isPrefixOf` i
@@ -185,7 +185,7 @@ string s = do
 {-# INLINE string #-}
 
 -- | Indicate whether the end of the input has been reached.
-atEnd :: Monad m => ZeptoT m Bool
+atEnd :: (Total m, Monad m) => ZeptoT m Bool
 atEnd = do
   i <- gets input
   return $! B.null i

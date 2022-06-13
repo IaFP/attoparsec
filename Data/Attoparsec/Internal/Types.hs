@@ -1,5 +1,5 @@
 {-# LANGUAGE CPP, BangPatterns, GeneralizedNewtypeDeriving, OverloadedStrings,
-    Rank2Types, RecordWildCards, TypeFamilies #-}
+    Rank2Types, RecordWildCards, TypeFamilies, PartialTypeConstructors, ConstrainedClassMethods, FlexibleContexts, TypeFamilyDependencies #-}
 -- |
 -- Module      :  Data.Attoparsec.Internal.Types
 -- Copyright   :  Bryan O'Sullivan 2007-2015
@@ -115,7 +115,7 @@ newtype Parser i a = Parser {
                 -> IResult i r
     }
 
-type family State i
+type family State i = r | r -> i
 type instance State ByteString = B.Buffer
 type instance State Text = T.Buffer
 
@@ -221,7 +221,7 @@ instance Alternative (Parser i) where
     {-# INLINE some #-}
 
 -- | A common interface for input chunks.
-class Monoid c => Chunk c where
+class (Monoid c) => Chunk c where
   type ChunkElem c
   -- | Test if the chunk is empty.
   nullChunk :: c -> Bool

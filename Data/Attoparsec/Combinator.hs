@@ -52,7 +52,7 @@ import Data.Foldable (asum)
 import Data.Text (Text)
 import qualified Data.Attoparsec.Zepto as Z
 import Prelude hiding (succ)
-
+import GHC.Types (Total)
 -- | Attempt a parse, and if it fails, rewind the input so that no
 -- input appears to have been consumed.
 --
@@ -231,7 +231,7 @@ skipMany1 p = p *> skipMany p
 {-# SPECIALIZE skipMany1 :: Z.Parser a -> Z.Parser () #-}
 
 -- | Apply the given action repeatedly, returning every result.
-count :: Monad m => Int -> m a -> m [a]
+count :: (Total m, Monad m) => Int -> m a -> m [a]
 count n p = sequence (replicate n p)
 {-# INLINE count #-}
 
